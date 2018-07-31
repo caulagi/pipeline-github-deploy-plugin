@@ -14,7 +14,6 @@ import com.cloudbees.jenkins.GitHubRepositoryNameContributor;
 
 import org.jenkinsci.plugins.github.extension.GHEventsSubscriber;
 import org.jenkinsci.plugins.github.extension.GHSubscriberEvent;
-import org.kohsuke.github.GHDeployment;
 import org.kohsuke.github.GHEvent;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GitHub;
@@ -32,7 +31,6 @@ import jenkins.model.Jenkins;
  */
 @Extension
 public class DeploymentEventSubscriber extends GHEventsSubscriber {
-    GHDeployment deployment;
 
     @Override
     protected boolean isApplicable(Item project) {
@@ -49,7 +47,7 @@ public class DeploymentEventSubscriber extends GHEventsSubscriber {
 
     @Override
     protected void onEvent(final GHSubscriberEvent event) {
-        GHEventPayload.Deployment deploymentEvent;
+        final GHEventPayload.Deployment deploymentEvent;
 
         try {
             deploymentEvent = GitHub.offline().parseEventPayload(new StringReader(event.getPayload()),
@@ -58,8 +56,7 @@ public class DeploymentEventSubscriber extends GHEventsSubscriber {
             LOGGER.warn("Received malformed Deployment: " + event.getPayload(), e);
             return;
         }
-        deployment = deploymentEvent.getDeployment();
-        String repoUrl = deployment.getRepositoryUrl().toExternalForm();
+        String repoUrl = deploymentEvent.getDeployment().getRepositoryUrl().toExternalForm();
         LOGGER.info("Received Deployment for {} from {}", repoUrl, event.getOrigin());
 
         // repoUrl is of the form https://api.github.com/repos/starstableent/docker-test
@@ -80,7 +77,7 @@ public class DeploymentEventSubscriber extends GHEventsSubscriber {
                         String fullDisplayName = job.getFullDisplayName();
                         if (GitHubRepositoryNameContributor.parseAssociatedNames(job).contains(changedRepository)) {
                             LOGGER.info("Poked {}", fullDisplayName);
-                            job.scheduleBuild(new DeploymentCause("cau"));
+                            job.scheduleBuild(new DeploymentCause(deploymentEvent));
                         } else {
                             LOGGER.info("Skipped {} because it doesn't have a matching repository.", fullDisplayName);
                         }
