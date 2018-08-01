@@ -24,6 +24,7 @@ import hudson.Extension;
 import hudson.model.AbstractProject;
 import hudson.model.Item;
 import hudson.security.ACL;
+import hudson.security.ACLContext;
 import jenkins.model.Jenkins;
 
 /**
@@ -70,20 +71,17 @@ public class DeploymentEventSubscriber extends GHEventsSubscriber {
             // run in high privilege to see all the projects anonymous users don't see.
             // this is safe because when we actually schedule a build, it's a build that can
             // happen at some random time anyway.
-            ACL.impersonate(ACL.SYSTEM, new Runnable() {
-                @Override
-                public void run() {
-                    for (AbstractProject job : Jenkins.getInstance().getAllItems(AbstractProject.class)) {
-                        String fullDisplayName = job.getFullDisplayName();
-                        if (GitHubRepositoryNameContributor.parseAssociatedNames(job).contains(changedRepository)) {
-                            LOGGER.info("Poked {}", fullDisplayName);
-                            job.scheduleBuild(new DeploymentCause(deploymentEvent));
-                        } else {
-                            LOGGER.info("Skipped {} because it doesn't have a matching repository.", fullDisplayName);
-                        }
+            try (ACLContext _AclContext = ACL.as(ACL.SYSTEM)) {
+                for (AbstractProject job : Jenkins.get().getAllItems(AbstractProject.class)) {
+                    String fullDisplayName = job.getFullDisplayName();
+                    if (GitHubRepositoryNameContributor.parseAssociatedNames(job).contains(changedRepository)) {
+                        LOGGER.info("Poked {}", fullDisplayName);
+                        job.scheduleBuild(new DeploymentCause(deploymentEvent));
+                    } else {
+                        LOGGER.info("Skipped {} because it doesn't have a matching repository.", fullDisplayName);
                     }
                 }
-            });
+            }
         } else {
             LOGGER.warn("Malformed repo url {}", repoUrl);
         }
